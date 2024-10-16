@@ -8,6 +8,7 @@
 #include "GameFramework/SpringArmComponent.h"
 #include "Net/UnrealNetwork.h"
 #include "Engine/Engine.h"
+#include "DamageProjectile.h"
 #include "GameFramework/Controller.h"
 #include "EnhancedInputComponent.h"
 #include "EnhancedInputSubsystems.h"
@@ -58,6 +59,12 @@ AMVP2Character::AMVP2Character()
 	//Initialize player's health
 	MaxHealth = 100.0f;
 	CurrentHealth = MaxHealth;
+
+	//Initialize projectile class
+	ProjectileClass = ADamageProjectile::StaticClass();
+	//Initialize fire rate
+	FireRate = 0.25f;
+	bIsFiringWeapon = false;
 }
 
 void AMVP2Character::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const
@@ -116,11 +123,17 @@ void AMVP2Character::SetupPlayerInputComponent(UInputComponent* PlayerInputCompo
 
 		// Looking
 		EnhancedInputComponent->BindAction(LookAction, ETriggerEvent::Triggered, this, &AMVP2Character::Look);
+
+		EnhancedInputComponent->BindAction(FireAction, ETriggerEvent::Started, this, &AMVP2Character::StartFire);
+		EnhancedInputComponent->BindAction(FireAction, ETriggerEvent::Completed, this, &AMVP2Character::StopFire);
 	}
 	else
 	{
 		UE_LOG(LogTemplateCharacter, Error, TEXT("'%s' Failed to find an Enhanced Input component! This template is built to use the Enhanced Input system. If you intend to use the legacy system, then you will need to update this C++ file."), *GetNameSafe(this));
 	}
+
+	//Handle Firing projectiles
+	//PlayerInputComponent->BindAction("Fire", IE_Pressed, this, &AMVP2Character::StartFire);
 }
 
 void AMVP2Character::OnRep_CurrentHealth()
@@ -190,4 +203,39 @@ void AMVP2Character::Look(const FInputActionValue& Value)
 		AddControllerYawInput(LookAxisVector.X);
 		AddControllerPitchInput(LookAxisVector.Y);
 	}
+}
+
+void AMVP2Character::StartFire()
+{
+	if (!bIsFiringWeapon)
+	{
+		GEngine->AddOnScreenDebugMessage(-1, 5.f, FColor::Green, TEXT("Firing Weapon!"));
+		bIsFiringWeapon = true;
+		UWorld* World = GetWorld();
+		World->GetTimerManager().SetTimer(FiringTimer, this, &AMVP2Character::StopFire, FireRate, false);
+		HandleFire();
+	}
+
+	else
+	{
+		GEngine->AddOnScreenDebugMessage(-1, 5.f, FColor::Red, TEXT("Weapon is already firing!"));
+
+	}
+}
+
+void AMVP2Character::StopFire()
+{
+	bIsFiringWeapon = false;
+}
+
+void AMVP2Character::HandleFire_Implementation()
+{
+	FVector spawnLocation = GetActorLocation() + (GetActorRotation().Vector() * 100.0f) + (GetActorUpVector() * 50.0f);
+	FRotator spawnRotation = GetActorRotation();
+
+	FActorSpawnParameters spawnParameters;
+	spawnParameters.Instigator = this;
+	spawnParameters.Owner = this;
+
+	ADamageProjectile* spawnedProjectile = GetWorld()->SpawnActor<ADamageProjectile>(spawnLocation, spawnRotation, spawnParameters);
 }

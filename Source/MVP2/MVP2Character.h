@@ -47,8 +47,37 @@ class AMVP2Character : public ACharacter
 public:
 	AMVP2Character();
 	
+	/** Property replication */
+	void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
+
+	/** Getter for Max Health */
+	UFUNCTION(BlueprintPure, Category = "Health")
+	FORCEINLINE float GetMaxHealth() const { return MaxHealth; }
+
+	/** Getter for Current Health */
+	UFUNCTION(BlueprintPure, Category = "Health")
+	FORCEINLINE float GetCurrentHealth() const { return CurrentHealth; }
+
+	/** Setter for Current Health. Clamps the value between 0 and MaxHealth and calls OnHealthUpdate. Should only be called on the server. */
+	void SetCurrentHealth(float healthValue);
+
+	/** Event for taking damage. Overriden from APawn. */
+	UFUNCTION(BlueprintCallable, Category = "Health")
+	float TakeDamage(float DamageTaken, struct FDamageEvent const& DamageEvent, AController* EventInstigator, AActor* DamageCauser) override;
 
 protected:
+
+	UPROPERTY(EditDefaultsOnly, Category = "Health")
+	float MaxHealth;
+
+	UPROPERTY(ReplicatedUsing = OnRep_CurrentHealth)
+	float CurrentHealth;
+
+	UFUNCTION()
+	void OnRep_CurrentHealth();
+
+	/** Response to health being updated. Called on the server immediately after modification, and on clients in response to a RepNotify */
+	void OnHealthUpdate();
 
 	/** Called for movement input */
 	void Move(const FInputActionValue& Value);
